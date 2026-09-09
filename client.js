@@ -72,7 +72,7 @@ export default async function render(shadow, ctx) {
       
       /* Left Column: Date & Weather */
       .sidebar {
-        width: 38%;
+        width: 28%;
         height: 100%;
         border-right: var(--stroke-2, 2px) solid var(--surface-sunken, #e5e5e5);
         display: flex;
@@ -83,6 +83,7 @@ export default async function render(shadow, ctx) {
       .date-card {
         display: flex;
         flex-direction: column;
+        align-items: center;
       }
       .day-number {
         font-size: 5.5rem;
@@ -103,21 +104,22 @@ export default async function render(shadow, ctx) {
         padding: 0.85rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
+        gap: 0.2rem;
+        align-items: center;
       }
       .weather-header {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.0rem;
         flex-direction: column;
       }
       .weather-icon {
-        font-size: 4rem;
+        font-size: 6.5rem;
         color: var(--text-primary, #111111);
         flex-shrink: 0;
       }
       .weather-condition {
-        font-size: 1rem;
+        font-size: 1.3rem;
         font-weight: 700;
         white-space: nowrap;
         overflow: hidden;
@@ -129,6 +131,7 @@ export default async function render(shadow, ctx) {
         font-size: 2.1rem;
         font-weight: 800;
         line-height: 1;
+        justify-content: center;
       }
       .arrow {
         font-size: 1.5rem;
@@ -252,7 +255,7 @@ export default async function render(shadow, ctx) {
               <div class="empty-notice">No upcoming events scheduled.</div>
             ` : agenda.map(group => `
               <div class="day-group ${group.label === 'TODAY' ? 'today' : ''}">
-                <div class="day-badge">${group.label}</div>
+                ${group.label !== 'TODAY' ? `<div class="day-badge">${group.label}</div>`:``}
                 ${group.events.map(ev => `
                   <div class="event-row">
                     <div class="event-time ${ev.is_all_day ? 'all-day' : ''}">${ev.time_str}</div>
