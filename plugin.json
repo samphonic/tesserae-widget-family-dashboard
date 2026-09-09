@@ -1,7 +1,7 @@
 {
   "tesserae_compat": "1.x",
   "name": "Family Dashboard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "kind": "widget",
   "description": "Full-screen family dashboard with date, weather forecast, and Google Calendar agenda.",
   "icon": "ph-calendar-check",

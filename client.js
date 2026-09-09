@@ -93,7 +93,7 @@ export default async function render(shadow, ctx) {
       }
       .weather-icon {
         font-size: 2.75rem;
-        color: var(--text-primary, #111111);
+        color: var(--text-primary);
       }
       .weather-temp {
         font-size: 2.6rem;
@@ -106,7 +106,7 @@ export default async function render(shadow, ctx) {
       }
       .weather-hl {
         font-size: 0.95rem;
-        color: var(--text-secondary, #555555);
+        color: var(--text-secondary);
         font-weight: 600;
       }
 
@@ -125,7 +125,7 @@ export default async function render(shadow, ctx) {
         justify-content: space-between;
         margin-bottom: 0.75rem;
         padding-bottom: 0.5rem;
-        border-bottom: var(--stroke-1, 1px) solid var(--surface-sunken, #e5e5e5);
+        border-bottom: var(--stroke-1, 1px) solid var(--surface-sunken);
       }
       .agenda-title {
         font-size: 1.1rem;
@@ -138,8 +138,8 @@ export default async function render(shadow, ctx) {
       .sample-pill {
         font-size: 0.75rem;
         font-weight: 700;
-        background: var(--accent-1, #fa5252);
-        color: #ffffff;
+        background: var(--accent-1);
+        color: var(--surface-sunken);
         padding: 2px 8px;
         border-radius: 999px;
       }
@@ -159,15 +159,15 @@ export default async function render(shadow, ctx) {
         font-size: 0.8rem;
         font-weight: 800;
         letter-spacing: 0.06em;
-        color: var(--text-secondary, #555555);
+        color: var(--text-secondary);
       }
       .day-group.today .day-badge {
-        color: var(--accent-4, #1971c2);
+        color: var(--accent-4);
       }
       .event-row {
         display: flex;
         align-items: center;
-        background: var(--surface-sunken, #f8f9fa);
+        background: var(--surface-sunken);
         padding: 0.45rem 0.75rem;
         border-radius: var(--radius-1, 4px);
         gap: 0.6rem;
@@ -176,12 +176,12 @@ export default async function render(shadow, ctx) {
         font-size: 0.8rem;
         font-weight: 700;
         min-width: 65px;
-        color: var(--text-secondary, #555555);
+        color: var(--text-secondary);
         flex-shrink: 0;
       }
       .event-time.all-day {
         font-weight: 800;
-        color: var(--accent-4, #1971c2);
+        color: var(--accent-4);
       }
       .event-title {
         font-size: 0.95rem;
@@ -193,7 +193,7 @@ export default async function render(shadow, ctx) {
       .empty-notice {
         font-size: 0.95rem;
         font-style: italic;
-        color: var(--text-muted, #888888);
+        color: var(--text-muted);
         padding: 1rem 0;
       }
     </style>
