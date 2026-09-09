@@ -1,0 +1,92 @@
+{
+  "tesserae_compat": "1.x",
+  "name": "Family Dashboard",
+  "version": "1.0.0",
+  "kind": "widget",
+  "description": "Full-screen family dashboard with date, weather forecast, and Google Calendar agenda.",
+  "icon": "ph-calendar-check",
+  "supports": {
+    "sizes": [
+      "md",
+      "lg"
+    ]
+  },
+  "cell_options": [
+    {
+      "name": "ics_url",
+      "type": "string",
+      "label": "Google Calendar iCal (.ics) URL",
+      "default": "",
+      "mask": false
+    },
+    {
+      "name": "days_ahead",
+      "type": "number",
+      "label": "Days to show in agenda",
+      "default": 5
+    },
+    {
+      "name": "latitude",
+      "type": "number",
+      "label": "Latitude",
+      "default": 37.7749
+    },
+    {
+      "name": "longitude",
+      "type": "number",
+      "label": "Longitude",
+      "default": -122.4194
+    },
+    {
+      "name": "units",
+      "type": "select",
+      "label": "Temperature units",
+      "default": "fahrenheit",
+      "choices": [
+        {
+          "value": "fahrenheit",
+          "label": "Fahrenheit (\u00b0F)"
+        },
+        {
+          "value": "celsius",
+          "label": "Celsius (\u00b0C)"
+        }
+      ]
+    },
+    {
+      "name": "time_format",
+      "type": "select",
+      "label": "Time format",
+      "default": "12h",
+      "choices": [
+        {
+          "value": "12h",
+          "label": "12-hour (AM/PM)"
+        },
+        {
+          "value": "24h",
+          "label": "24-hour"
+        }
+      ]
+    }
+  ],
+  "requires": [
+    "network:api.open-meteo.com",
+    "network:*"
+  ],
+  "render": {
+    "needs_network": true
+  },
+  "data_schema": {
+    "fields": [
+      {
+        "name": "value",
+        "label": "Value",
+        "type": "num"
+      }
+    ],
+    "sample": {
+      "value": 1
+    }
+  }
+}
