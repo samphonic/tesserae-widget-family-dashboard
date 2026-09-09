@@ -36,11 +36,34 @@ export default async function render(shadow, ctx) {
       }
       .dashboard {
         display: flex;
+        flex-direction: column;
         width: 100%;
         height: 100%;
-        background: var(--surface);
-        color: var(--text-primary);
+        background: var(--surface, #ffffff);
+        color: var(--text-primary, #111111);
         font-family: var(--font-family, system-ui, -apple-system, sans-serif);
+        overflow: hidden;
+      }
+
+      /* Full-Width Top Header */
+      .top-header {
+        padding: 0.75rem 1.5rem 0.5rem;
+        border-bottom: var(--stroke-2, 2px) solid var(--surface-sunken, #e5e5e5);
+        background: var(--surface, #ffffff);
+      }
+      .header-weekday {
+        font-size: 2.2rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        color: var(--accent-4, #1971c2);
+      }
+
+      .content-body {
+        display: flex;
+        flex: 1;
+        min-height: 0;
         overflow: hidden;
       }
       
@@ -48,43 +71,36 @@ export default async function render(shadow, ctx) {
       .sidebar {
         width: 38%;
         height: 100%;
-        border-right: var(--stroke-2, 2px) solid var(--surface-sunken);
+        border-right: var(--stroke-2, 2px) solid var(--surface-sunken, #e5e5e5);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: var(--space-4, 1.5rem);
+        padding: var(--space-4, 1.25rem);
       }
       .date-card {
         display: flex;
         flex-direction: column;
       }
-      .weekday {
-        font-size: 1.4rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--accent-4);
-      }
       .day-number {
         font-size: 5.5rem;
         font-weight: 900;
-        line-height: 0.95;
+        line-height: 0.9;
         letter-spacing: -0.04em;
-        margin: 0.2rem 0;
+        margin-bottom: 0.35rem;
       }
       .month-year {
         font-size: 1.25rem;
         font-weight: 600;
-        color: var(--text-secondary);
+        color: var(--text-secondary, #555555);
       }
 
       .weather-card {
-        background: var(--surface-sunken);
+        background: var(--surface-sunken, #f8f9fa);
         border-radius: var(--radius-2, 6px);
-        padding: 1rem;
+        padding: 0.9rem;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
+        gap: 0.35rem;
       }
       .weather-main {
         display: flex;
@@ -93,20 +109,28 @@ export default async function render(shadow, ctx) {
       }
       .weather-icon {
         font-size: 2.75rem;
-        color: var(--text-primary);
+        color: var(--text-primary, #111111);
       }
-      .weather-temp {
-        font-size: 2.6rem;
+      .weather-hl-large {
+        display: flex;
+        gap: 0.5rem;
+        font-size: 2.1rem;
         font-weight: 800;
         line-height: 1;
+      }
+      .arrow {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-secondary, #555555);
+        margin-right: 1px;
       }
       .weather-condition {
         font-size: 1.05rem;
         font-weight: 700;
       }
-      .weather-hl {
+      .weather-current {
         font-size: 0.95rem;
-        color: var(--text-secondary);
+        color: var(--text-secondary, #555555);
         font-weight: 600;
       }
 
@@ -199,47 +223,60 @@ export default async function render(shadow, ctx) {
     </style>
 
     <div class="dashboard">
-      <!-- Left Column: Date & Weather -->
-      <section class="sidebar">
-        <div class="date-card">
-          <div class="weekday">${dateInfo.weekday}</div>
-          <div class="day-number">${dateInfo.day}</div>
-          <div class="month-year">${dateInfo.month_year}</div>
-        </div>
+      <!-- Full-Width Top Header -->
+      <header class="top-header">
+        <div class="header-weekday">${dateInfo.weekday}</div>
+      </header>
 
-        <div class="weather-card">
-          <div class="weather-main">
-            <i class="ph-bold ${weather.icon || 'ph-sun'} weather-icon" aria-hidden="true"></i>
-            <div class="weather-temp">${weather.current_temp}${weather.unit}</div>
+      <div class="content-body">
+        <!-- Left Column: Day/Month & Weather -->
+        <section class="sidebar">
+          <div class="date-card">
+            <div class="day-number">${dateInfo.day}</div>
+            <div class="month-year">${dateInfo.month_year}</div>
           </div>
-          <div class="weather-condition">${weather.condition}</div>
-          <div class="weather-hl">High ${weather.high}° · Low ${weather.low}°</div>
-        </div>
-      </section>
 
-      <!-- Right Column: Agenda -->
-      <section class="agenda-container">
-        <div class="agenda-header">
-          ${isSample ? `<div class="sample-pill">SAMPLE PREVIEW</div>` : ''}
-        </div>
-
-        <div class="events-scroll">
-          ${agenda.length === 0 ? `
-            <div class="empty-notice">No upcoming events scheduled.</div>
-          ` : agenda.map(group => `
-            <div class="day-group ${group.label === 'TODAY' ? 'today' : ''}">
-              <div class="day-badge">${group.label}</div>
-              ${group.events.map(ev => `
-                <div class="event-row">
-                  <div class="event-time ${ev.is_all_day ? 'all-day' : ''}">${ev.time_str}</div>
-                  <i class="ph-bold ${ev.icon || 'ph-calendar-blank'}" style="font-size: 0.95rem; flex-shrink: 0;" aria-hidden="true"></i>
-                  <div class="event-title">${ev.title}</div>
-                </div>
-              `).join('')}
+          <div class="weather-card">
+            <div class="weather-main">
+              <i class="ph-bold ${weather.icon || 'ph-sun'} weather-icon" aria-hidden="true"></i>
+              <div class="weather-hl-large">
+                <span><span class="arrow">↑</span>${weather.high}°</span>
+                <span><span class="arrow">↓</span>${weather.low}°</span>
+              </div>
             </div>
-          `).join('')}
-        </div>
-      </section>
+            <div class="weather-condition">${weather.condition}</div>
+            <div class="weather-current">Currently ${weather.current_temp}${weather.unit}</div>
+          </div>
+        </section>
+
+        <!-- Right Column: Agenda -->
+        <section class="agenda-container">
+          <div class="agenda-header">
+            <div class="agenda-title">
+              <i class="ph-bold ph-calendar-check" aria-hidden="true"></i>
+              UPCOMING AGENDA
+            </div>
+            ${isSample ? `<div class="sample-pill">SAMPLE PREVIEW</div>` : ''}
+          </div>
+
+          <div class="events-scroll">
+            ${agenda.length === 0 ? `
+              <div class="empty-notice">No upcoming events scheduled.</div>
+            ` : agenda.map(group => `
+              <div class="day-group ${group.label === 'TODAY' ? 'today' : ''}">
+                <div class="day-badge">${group.label}</div>
+                ${group.events.map(ev => `
+                  <div class="event-row">
+                    <div class="event-time ${ev.is_all_day ? 'all-day' : ''}">${ev.time_str}</div>
+                    <i class="ph-bold ${ev.icon || 'ph-calendar-blank'}" style="font-size: 0.95rem; flex-shrink: 0;" aria-hidden="true"></i>
+                    <div class="event-title">${ev.title}</div>
+                  </div>
+                `).join('')}
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      </div>
     </div>
   `;
 }

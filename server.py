@@ -68,8 +68,8 @@ def _get_weather(lat: float, lon: float, units: str, cache_dir: str) -> Dict[str
     raw = _fetch_url(url)
     payload = json.loads(raw)
 
-    curr_code = payload.get("current", {}).get("weather_code", 0)
-    icon, condition = WMO_MAP.get(curr_code, ("ph-sun", "Clear"))
+    forecast_code = payload.get("daily", {}).get("weather_code", [0])[0]
+    icon, condition = WMO_MAP.get(forecast_code, ("ph-sun", "Clear"))
 
     data = {
         "current_temp": round(payload.get("current", {}).get("temperature_2m", 0)),

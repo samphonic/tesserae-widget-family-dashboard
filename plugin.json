@@ -11,7 +11,7 @@
       "lg"
     ]
   },
-  "cell_options": [
+  "cell_options": [ 
     {
       "name": "ics_url",
       "type": "string",
