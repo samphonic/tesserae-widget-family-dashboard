@@ -122,6 +122,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
                 ev_date: Optional[date] = None
                 time_str = "All Day"
                 is_all_day = True
+                sort_minutes = -1  # -1 guarantees all-day events appear first
 
                 try:
                     if "T" in dt_str:
@@ -132,6 +133,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
                         ev_hour = int(clean_time[:2])
                         ev_min = int(clean_time[2:4])
                         is_all_day = False
+                        sort_minutes = ev_hour * 60 + ev_min
 
                         if time_format == "24h":
                             time_str = f"{ev_hour:02d}:{ev_min:02d}"
@@ -153,6 +155,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
                         "date_iso": ev_date.isoformat(),
                         "time_str": time_str,
                         "is_all_day": is_all_day,
+                        "sort_minutes": sort_minutes,
                         # Slots ready for native Google Calendar API migration:
                         "color_id": cur_event.get("COLOR_ID", "default"),
                         "icon": "ph-calendar-blank",
@@ -165,7 +168,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
             cur_event[prop_name] = val
 
     # Sort events chronologically (date, then all-day first, then by time)
-    events.sort(key=lambda e: (e["date_iso"], not e["is_all_day"], e["time_str"]))
+    events.sort(key=lambda e: (e["date_iso"], e.get("sort_minutes", -1)))
     return events
 
 
