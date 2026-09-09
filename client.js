@@ -50,9 +50,12 @@ export default async function render(shadow, ctx) {
         padding: 0.75rem 1.5rem 0.5rem;
         border-bottom: var(--stroke-2, 2px) solid var(--surface-sunken, #e5e5e5);
         background: var(--surface, #ffffff);
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .header-weekday {
-        font-size: 2.2rem;
+        font-size: 3.8rem;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: -0.02em;
@@ -97,23 +100,32 @@ export default async function render(shadow, ctx) {
       .weather-card {
         background: var(--surface-sunken, #f8f9fa);
         border-radius: var(--radius-2, 6px);
-        padding: 0.9rem;
+        padding: 0.85rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 0.35rem;
+        gap: 0.4rem;
       }
-      .weather-main {
+      .weather-header {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.5rem;
+        flex-direction: column;
       }
       .weather-icon {
-        font-size: 2.75rem;
+        font-size: 4rem;
         color: var(--text-primary, #111111);
+        flex-shrink: 0;
+      }
+      .weather-condition {
+        font-size: 1rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .weather-hl-large {
         display: flex;
-        gap: 0.5rem;
+        gap: 0.75rem;
         font-size: 2.1rem;
         font-weight: 800;
         line-height: 1;
@@ -122,14 +134,10 @@ export default async function render(shadow, ctx) {
         font-size: 1.5rem;
         font-weight: 700;
         color: var(--text-secondary, #555555);
-        margin-right: 1px;
-      }
-      .weather-condition {
-        font-size: 1.05rem;
-        font-weight: 700;
+        margin-right: 2px;
       }
       .weather-current {
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         color: var(--text-secondary, #555555);
         font-weight: 600;
       }
@@ -143,22 +151,6 @@ export default async function render(shadow, ctx) {
         flex-direction: column;
         overflow: hidden;
       }
-      .agenda-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 0.75rem;
-        padding-bottom: 0.5rem;
-        border-bottom: var(--stroke-1, 1px) solid var(--surface-sunken);
-      }
-      .agenda-title {
-        font-size: 1.1rem;
-        font-weight: 800;
-        letter-spacing: 0.05em;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-      }
       .sample-pill {
         font-size: 0.75rem;
         font-weight: 700;
@@ -166,6 +158,8 @@ export default async function render(shadow, ctx) {
         color: var(--surface-sunken);
         padding: 2px 8px;
         border-radius: 999px;
+        align-content:center;
+        height: 2em;
       }
       .events-scroll {
         flex: 1;
@@ -226,6 +220,7 @@ export default async function render(shadow, ctx) {
       <!-- Full-Width Top Header -->
       <header class="top-header">
         <div class="header-weekday">${dateInfo.weekday}</div>
+        ${isSample ? `<div class="sample-pill">SAMPLE PREVIEW</div>` : ''}
       </header>
 
       <div class="content-body">
@@ -237,27 +232,20 @@ export default async function render(shadow, ctx) {
           </div>
 
           <div class="weather-card">
-            <div class="weather-main">
+            <div class="weather-header">
               <i class="ph-bold ${weather.icon || 'ph-sun'} weather-icon" aria-hidden="true"></i>
-              <div class="weather-hl-large">
-                <span><span class="arrow">↑</span>${weather.high}°</span>
-                <span><span class="arrow">↓</span>${weather.low}°</span>
-              </div>
+              <div class="weather-condition">${weather.condition}</div>
             </div>
-            <div class="weather-condition">${weather.condition}</div>
+            <div class="weather-hl-large">
+              <span><span class="arrow">↑</span>${weather.high}°</span>
+              <span><span class="arrow">↓</span>${weather.low}°</span>
+            </div>
             <div class="weather-current">Currently ${weather.current_temp}${weather.unit}</div>
-          </div>
+            </div>
         </section>
 
         <!-- Right Column: Agenda -->
         <section class="agenda-container">
-          <div class="agenda-header">
-            <div class="agenda-title">
-              <i class="ph-bold ph-calendar-check" aria-hidden="true"></i>
-              UPCOMING AGENDA
-            </div>
-            ${isSample ? `<div class="sample-pill">SAMPLE PREVIEW</div>` : ''}
-          </div>
 
           <div class="events-scroll">
             ${agenda.length === 0 ? `
