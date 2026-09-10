@@ -3,8 +3,9 @@ import json
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import Any, Dict, List, Optional
+import zoneinfo
 
 try:
     from google.oauth2 import service_account
@@ -48,6 +49,50 @@ def _fetch_url(url: str, timeout: int = 8) -> str:
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
+def _resolve_tesserae_environment(options: dict, ctx: dict):
+    """
+    Extracts latitude, longitude, and timezone from widget options,
+    ctx fallbacks, or Flask's app settings.
+    """
+    app_settings = {}
+    try:
+        from flask import current_app
+        if current_app:
+            app_settings = (
+                current_app.config.get("SETTINGS", {}).get("app", {})
+                or current_app.config.get("APP_SETTINGS", {})
+                or {}
+            )
+    except Exception:
+        pass
+
+    # 1. Resolve Latitude & Longitude
+    lat = options.get("latitude") or ctx.get("home_lat") or ctx.get("latitude") or app_settings.get("latitude")
+    lon = options.get("longitude") or ctx.get("home_lon") or ctx.get("longitude") or app_settings.get("longitude")
+
+    lat = float(lat) if lat is not None else 37.7749
+    lon = float(lon) if lon is not None else -122.4194
+
+    # 2. Resolve Timezone
+    tz_name = (
+        options.get("timezone")
+        or ctx.get("timezone")
+        or ctx.get("tz")
+        or app_settings.get("timezone")
+    )
+
+    target_tz = None
+    if tz_name:
+        try:
+            target_tz = zoneinfo.ZoneInfo(str(tz_name).strip())
+        except Exception:
+            pass
+
+    # Fallback to local server timezone
+    if target_tz is None:
+        target_tz = datetime.now().astimezone().tzinfo or timezone.utc
+
+    return lat, lon, target_tz, (str(tz_name) if tz_name else "auto")
 
 def _get_weather(lat: float, lon: float, units: str, cache_dir: str) -> Dict[str, Any]:
     """Fetch forecast from Open-Meteo (cached for 15 minutes)."""
@@ -222,7 +267,7 @@ def _fetch_google_calendar_events(
     events.sort(key=lambda e: (e["date_iso"], e.get("sort_minutes", -1)))
     return events
 
-def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict[str, Any]]:
+def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: Any) -> List[Dict[str, Any]]:
     """A lightweight, zero-dependency iCalendar (RFC 5545) parser."""
     # Unfold wrapped lines in RFC 5545 (lines starting with space or tab)
     lines = []
@@ -232,6 +277,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
         else:
             lines.append(raw_line)
 
+    now_local = datetime.now(target_tz)
     today = date.today()
     end_date = today + timedelta(days=days_ahead)
 
@@ -262,30 +308,40 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
 
                 try:
                     if "T" in dt_str:
-                        # e.g., 20260909T143000Z or 20260909T143000
-                        clean_dt = dt_str.split("T")[0]
-                        clean_time = dt_str.split("T")[1].replace("Z", "")[:4]
-                        ev_date = datetime.strptime(clean_dt, "%Y%m%d").date()
-                        ev_hour = int(clean_time[:2])
-                        ev_min = int(clean_time[2:4])
-                        is_all_day = False
-                        sort_minutes = ev_hour * 60 + ev_min
+                        clean_dt = dt_str.replace("-", "").replace(":", "")
+                        if "T" in clean_dt:
+                            date_part, time_part = clean_dt.split("T")
+                            is_utc = time_part.endswith("Z")
+                            time_part = time_part.replace("Z", "")[:6].ljust(6, "0")
+                            
+                            naive_dt = datetime.strptime(f"{date_part[:8]}T{time_part}", "%Y%m%dT%H%M%S")
+                            
+                            # If exported in UTC ('Z'), convert to your local timezone!
+                            if is_utc:
+                                localized_dt = naive_dt.replace(tzinfo=timezone.utc).astimezone(target_tz)
+                            else:
+                                localized_dt = naive_dt.replace(tzinfo=target_tz)
 
-                        if time_format == "24h":
-                            time_str = f"{ev_hour:02d}:{ev_min:02d}"
-                            time_hr = f"{ev_hour:02d}"
-                            time_min = f"{ev_min:02d}"
-                        else:
-                            period = "AM" if ev_hour < 12 else "PM"
-                            display_hour = ev_hour % 12
-                            if display_hour == 0:
-                                display_hour = 12
-                            time_str = f"{display_hour}:{ev_min:02d} {period}"
-                            time_hr = str(display_hour)
-                            time_min = f"{ev_min:02d}"
-                            time_period = period
+                            ev_date = localized_dt.date()
+                            ev_hour = localized_dt.hour
+                            ev_min = localized_dt.minute
+                            is_all_day = False
+                            sort_minutes = ev_hour * 60 + ev_min
+
+                            if time_fmt == "24h":
+                                time_str = f"{ev_hour:02d}:{ev_min:02d}"
+                                time_hr_str = f"{ev_hour:02d}"
+                                time_min_str = f"{ev_min:02d}"
+                                time_period = ""
+                            else:
+                                period = "AM" if ev_hour < 12 else "PM"
+                                display_hour = ev_hour % 12 or 12
+                                time_str = f"{display_hour}:{ev_min:02d} {period}"
+                                time_hr_str = str(display_hour)
+                                time_min_str = f"{ev_min:02d}"
+                                time_period = period
                     else:
-                        # Date only: YYYYMMDD
+                        # All-day event (date only)
                         ev_date = datetime.strptime(dt_str[:8], "%Y%m%d").date()
                 except Exception:
                     continue
@@ -399,8 +455,8 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
     data_dir = ctx.get("data_dir", "/tmp")
     os.makedirs(data_dir, exist_ok=True)
 
-    lat = float(options.get("latitude") or 37.7749)
-    lon = float(options.get("longitude") or -122.4194)
+    # Automatically resolve coordinates & local timezone
+    lat, lon, target_tz, tz_str = _resolve_tesserae_environment(options, ctx)
     units = options.get("units") or "fahrenheit"
     time_fmt = options.get("time_format") or "12h"
     days_ahead = int(options.get("days_ahead") or 5)
