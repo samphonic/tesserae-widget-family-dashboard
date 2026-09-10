@@ -121,6 +121,9 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
                 # Parse date / datetime
                 ev_date: Optional[date] = None
                 time_str = "All Day"
+                time_hr = ""
+                time_min = ""
+                time_period = ""
                 is_all_day = True
                 sort_minutes = -1  # -1 guarantees all-day events appear first
 
@@ -137,12 +140,17 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
 
                         if time_format == "24h":
                             time_str = f"{ev_hour:02d}:{ev_min:02d}"
+                            time_hr = f"{ev_hour:02d}"
+                            time_min = f"{ev_min:02d}"
                         else:
                             period = "AM" if ev_hour < 12 else "PM"
                             display_hour = ev_hour % 12
                             if display_hour == 0:
                                 display_hour = 12
                             time_str = f"{display_hour}:{ev_min:02d} {period}"
+                            time_hr = str(display_hour)
+                            time_min = f"{ev_min:02d}"
+                            time_period = period
                     else:
                         # Date only: YYYYMMDD
                         ev_date = datetime.strptime(dt_str[:8], "%Y%m%d").date()
@@ -154,6 +162,9 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict
                         "title": summary,
                         "date_iso": ev_date.isoformat(),
                         "time_str": time_str,
+                        "time_hr": time_hr,
+                        "time_min": time_min,
+                        "time_period": time_period,
                         "is_all_day": is_all_day,
                         "sort_minutes": sort_minutes,
                         # Slots ready for native Google Calendar API migration:
@@ -180,6 +191,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "title": "School Drop-off",
             "date_iso": today.isoformat(),
             "time_str": "8:15 AM",
+            "time_hr": "8",
+            "time_min": "15",
+            "time_period": "AM",
             "is_all_day": False,
             "color_id": "1",
             "icon": "ph-backpack",
@@ -188,6 +202,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "title": "Dentist Appointment",
             "date_iso": today.isoformat(),
             "time_str": "2:00 PM",
+            "time_hr": "2",
+            "time_min": "00",
+            "time_period": "PM",
             "is_all_day": False,
             "color_id": "2",
             "icon": "ph-first-aid",
@@ -196,6 +213,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "title": "Trash & Recycling Pickup",
             "date_iso": (today + timedelta(days=1)).isoformat(),
             "time_str": "All Day",
+            "time_hr": "",
+            "time_min": "",
+            "time_period": "",
             "is_all_day": True,
             "color_id": "3",
             "icon": "ph-trash",
@@ -204,6 +224,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "title": "Soccer Tournament",
             "date_iso": (today + timedelta(days=2)).isoformat(),
             "time_str": "10:00 AM",
+            "time_hr": "10",
+            "time_min": "00",
+            "time_period": "AM",
             "is_all_day": False,
             "color_id": "1",
             "icon": "ph-trophy",

@@ -48,7 +48,7 @@ export default async function render(shadow, ctx) {
       /* Full-Width Top Header */
       .top-header {
         padding: 0.75rem 1.5rem 0.5rem;
-        border-bottom: var(--stroke-2, 2px) solid var(--surface-sunken, #e5e5e5);
+        border-bottom: var(--stroke-2, 2px) solid var(--edge, #e5e5e5);
         background: var(--surface, #ffffff);
         display: flex;
         align-items: center;
@@ -74,7 +74,7 @@ export default async function render(shadow, ctx) {
       .sidebar {
         width: 28%;
         height: 100%;
-        border-right: var(--stroke-2, 2px) solid var(--surface-sunken, #e5e5e5);
+        border-right: var(--stroke-2, 2px) solid var(--edge, #e5e5e5);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -100,6 +100,8 @@ export default async function render(shadow, ctx) {
 
       .weather-card {
         background: var(--surface-sunken, #f8f9fa);
+        border-color: var(--edge);
+        border-style: solid;
         border-radius: var(--radius-2, 6px);
         padding: 0.85rem 1rem;
         display: flex;
@@ -189,9 +191,18 @@ export default async function render(shadow, ctx) {
         display: flex;
         align-items: center;
         background: var(--surface-sunken);
-        padding: 0.45rem 0.75rem;
+        padding: 0.0rem 0.75rem;
         border-radius: var(--radius-1, 4px);
         gap: 0.6rem;
+      }
+      .today .event-hour {
+        color: var(--text-primary);
+        font-size: 3rem;
+        line-height: 1;
+      }
+      .today .event-min-fin {
+        display: flex;
+        flex-direction: column;
       }
       .event-time {
         font-size: 0.8rem;
@@ -199,18 +210,33 @@ export default async function render(shadow, ctx) {
         min-width: 65px;
         color: var(--text-secondary);
         flex-shrink: 0;
+        display: flex;
       }
       .event-time.all-day {
         font-weight: 800;
         color: var(--accent-4);
       }
       .event-title {
-        font-size: 0.95rem;
+        font-size: 1.2rem;
         font-weight: 600;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .today .title-lead {
+        font-size: 2rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        color: var(--text-primary, #111111);
+        line-height: 1;
+      }
+
+      .event-end-time {
+        line-height: 1;
+        padding-left: 0.3rem;
+        padding-bottom: 0.1rem;
+      }
+
       .empty-notice {
         font-size: 0.95rem;
         font-style: italic;
@@ -257,10 +283,15 @@ export default async function render(shadow, ctx) {
               <div class="day-group ${group.label === 'TODAY' ? 'today' : ''}">
                 ${group.label !== 'TODAY' ? `<div class="day-badge">${group.label}</div>`:``}
                 ${group.events.map(ev => `
-                  <div class="event-row">
-                    <div class="event-time ${ev.is_all_day ? 'all-day' : ''}">${ev.time_str}</div>
-                    <i class="ph-bold ${ev.icon || 'ph-calendar-blank'}" style="font-size: 0.95rem; flex-shrink: 0;" aria-hidden="true"></i>
-                    <div class="event-title">${ev.title}</div>
+                  <div class="event-row ${group.label === 'TODAY' ? 'today' : ''}">
+                    <div class="event-time ${ev.is_all_day ? 'all-day' : ''}">
+                      ${ev.is_all_day ? `` : `<div class='event-hour'>${ev.time_hr}</div><div class="event-min-fin"><span>:${ev.time_min}${ev.time_period}</span></div>`}
+                    </div>
+                    <i class="ph-bold ${ev.icon || 'ph-calendar-blank'}" style="font-size: 2rem; flex-shrink: 0;" aria-hidden="true"></i>
+                    <div class="event-right-side">
+                    <div class="event-title">${formatTitle(ev.title)}</div>
+                    <div class="event-end-time">until 00:00PM</div>
+                    </div>
                   </div>
                 `).join('')}
               </div>
@@ -270,4 +301,19 @@ export default async function render(shadow, ctx) {
       </div>
     </div>
   `;
+}
+
+function formatTitle(rawTitle) {
+  const title = (rawTitle || "").trim();
+  const firstSpace = title.indexOf(" ");
+
+  // Handle single-word titles gracefully
+  if (firstSpace === -1) {
+    return `<span class="title-lead">${title}</span>`;
+  }
+
+  const firstWord = title.slice(0, firstSpace);
+  const rest = title.slice(firstSpace + 1);
+
+  return `<span class="title-lead">${firstWord}</span> <span class="title-rest">${rest}</span>`;
 }
