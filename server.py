@@ -6,6 +6,13 @@ import urllib.error
 from datetime import datetime, timedelta, date
 from typing import Any, Dict, List, Optional
 
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    HAS_GOOGLE_CLIENT = True
+except ImportError:
+    HAS_GOOGLE_CLIENT = False
+
 # WMO Weather code mapper to Phosphor bold icons and human-friendly labels
 WMO_MAP = {
     0: ("ph-sun", "Clear Sky"),
@@ -88,6 +95,132 @@ def _get_weather(lat: float, lon: float, units: str, cache_dir: str) -> Dict[str
 
     return data
 
+def _parse_icon_map(mapping_text: str) -> Dict[str, str]:
+    """
+    Parses color mappings formatted as:
+    1=ph-backpack
+    2=ph-first-aid
+    """
+    mapping = {}
+    if not mapping_text:
+        return mapping
+    for line in mapping_text.splitlines():
+        line = line.strip()
+        if "=" in line:
+            cid, _, icon = line.partition("=")
+            mapping[cid.strip()] = icon.strip()
+    return mapping
+
+
+def _fetch_google_calendar_events(
+    credentials_raw: str,
+    calendar_ids_str: str,
+    icon_map: Dict[str, str],
+    days_ahead: int,
+    time_fmt: str,
+    target_tz: Any
+) -> List[Dict[str, Any]]:
+    """Fetches and deduplicates events across multiple Google Calendars via the REST API."""
+    if not HAS_GOOGLE_CLIENT:
+        raise RuntimeError("Missing google client libraries. Run: pip install google-api-python-client google-auth")
+
+    # 1. Authorize via pasted JSON string or file path
+    scopes = ["https://www.googleapis.com/auth/calendar.readonly"]
+    creds_str = credentials_raw.strip()
+    if creds_str.startswith("{"):
+        creds_info = json.loads(creds_str)
+        credentials = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
+    else:
+        credentials = service_account.Credentials.from_service_account_file(creds_str, scopes=scopes)
+
+    service = build("calendar", "v3", credentials=credentials, cache_discovery=False)
+
+    # 2. Set boundary times
+    now_local = datetime.now(target_tz)
+    time_min = now_local.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    time_max = (now_local + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59).isoformat()
+
+    cal_ids = [c.strip() for c in calendar_ids_str.split(",") if c.strip()]
+    if not cal_ids:
+        cal_ids = ["primary"]
+
+    events = []
+    seen_ids = set()
+
+    # 3. Pull events from each calendar
+    for cal_id in cal_ids:
+        try:
+            res = service.events().list(
+                calendarId=cal_id,
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,  # Automatically expands recurring events
+                orderBy="startTime"
+            ).execute()
+        except Exception as exc:
+            # Skip invalid calendars gracefully or continue with the rest
+            continue
+
+        items = res.get("items", [])
+        for item in items:
+            event_id = item.get("id")
+            if event_id in seen_ids:
+                continue
+            seen_ids.add(event_id)
+
+            summary = item.get("summary", "(No Title)")
+            start = item.get("start", {})
+            color_id = str(item.get("colorId", ""))
+
+            # Map the color to an icon (or fallback to default calendar icon)
+            icon = icon_map.get(color_id, "ph-calendar-blank")
+
+            if "dateTime" in start:
+                # Timed event
+                dt = datetime.fromisoformat(start["dateTime"]).astimezone(target_tz)
+                ev_date = dt.date()
+                ev_hour = dt.hour
+                ev_min = dt.minute
+                is_all_day = False
+                sort_minutes = ev_hour * 60 + ev_min
+
+                if time_fmt == "24h":
+                    time_str = f"{ev_hour:02d}:{ev_min:02d}"
+                    time_hr_str = f"{ev_hour:02d}"
+                    time_min_str = f"{ev_min:02d}"
+                    time_period = ""
+                else:
+                    period = "AM" if ev_hour < 12 else "PM"
+                    display_hour = ev_hour % 12 or 12
+                    time_str = f"{display_hour}:{ev_min:02d} {period}"
+                    time_hr = str(display_hour)
+                    time_min = f"{ev_min:02d}"
+                    time_period = period
+            else:
+                # All-day event (YYYY-MM-DD)
+                ev_date = datetime.strptime(start.get("date")[:10], "%Y-%m-%d").date()
+                time_str = "All Day"
+                time_hr = ""
+                time_min = ""
+                time_period = ""
+                is_all_day = True
+                sort_minutes = -1
+
+            events.append({
+                "title": summary,
+                "date_iso": ev_date.isoformat(),
+                "time_str": time_str,
+                "time_hr": time_hr,
+                "time_min": time_min,
+                "time_period": time_period,
+                "is_all_day": is_all_day,
+                "sort_minutes": sort_minutes,
+                "color_id": color_id,
+                "icon": icon,
+            })
+
+    events.sort(key=lambda e: (e["date_iso"], e.get("sort_minutes", -1)))
+    return events
 
 def _parse_ics(ics_content: str, days_ahead: int, time_format: str) -> List[Dict[str, Any]]:
     """A lightweight, zero-dependency iCalendar (RFC 5545) parser."""
@@ -291,10 +424,21 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
     events: List[Dict[str, Any]] = []
     is_sample_data = False
 
-    if ics_url:
+    google_creds = options.get("google_credentials_json", "").strip()
+    cal_ids = options.get("calendar_ids", "primary")
+    icon_map = _parse_icon_map(options.get("color_icon_map", ""))
+
+    if google_creds:
+        try:
+            events = _fetch_google_calendar_events(
+                google_creds, cal_ids, icon_map, days_ahead, time_fmt, target_tz
+            )
+        except Exception as exc:
+            return {"error": f"Google Calendar API error: {str(exc)}"}
+    elif ics_url:
         try:
             ics_raw = _fetch_url(ics_url)
-            events = _parse_ics(ics_raw, days_ahead, time_fmt)
+            events = _parse_ics(ics_raw, days_ahead, time_fmt, target_tz)
         except Exception as exc:
             return {"error": f"Failed to load calendar: {str(exc)}"}
     else:

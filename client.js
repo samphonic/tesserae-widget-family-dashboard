@@ -149,7 +149,7 @@ export default async function render(shadow, ctx) {
 
       /* Right Column: Calendar Agenda */
       .agenda-container {
-        width: 62%;
+        width: 72%;
         height: 100%;
         padding: var(--space-4, 1.5rem);
         display: flex;
@@ -172,6 +172,7 @@ export default async function render(shadow, ctx) {
         display: flex;
         flex-direction: column;
         gap: 0.85rem;
+        overflow: hidden;
       }
       .day-group {
         display: flex;
