@@ -199,7 +199,7 @@ export default async function render(shadow, ctx) {
       }
       .today .event-hour {
         color: var(--text-primary);
-        font-size: 3rem;
+        font-size: 3.2rem;
         line-height: 1;
       }
       .today .event-min-fin {

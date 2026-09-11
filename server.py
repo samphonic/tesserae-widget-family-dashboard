@@ -445,18 +445,16 @@ def _group_events_by_day(events: List[Dict[str, Any]], days_ahead: int) -> List[
 
         if i == 0:
             label = "TODAY"
-        elif i == 1:
-            label = "TOMORROW"
         else:
             label = target_date.strftime("%A, %b %d").upper()
 
         day_events = [e for e in events if e["date_iso"] == target_iso]
-        if day_events:
-            grouped.append({
-                "date_str": target_iso,
-                "label": label,
-                "events": day_events,
-            })
+        
+        grouped.append({
+            "date_str": target_iso,
+            "label": label,
+            "events": day_events,
+        })
 
     return grouped
 
