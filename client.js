@@ -221,6 +221,13 @@ export default async function render(shadow, ctx) {
         font-weight: 800;
         color: var(--accent-4);
       }
+
+      .event-right-side {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+      }
+
       .event-title {
         font-size: 1.2rem;
         font-weight: 600;
@@ -229,7 +236,22 @@ export default async function render(shadow, ctx) {
         text-overflow: ellipsis;
         line-height: 1.4;
         overflow: visible;
+        display: flex;
+        min-width: 0;
+        align-items: baseline;
       }
+
+      .title-lead {
+        flex-shrink: 0;
+        margin-right: 0.35rem;
+      }
+
+      .title-rest {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+
       .today .title-lead {
         font-size: 2rem;
         font-weight: 800;

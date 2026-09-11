@@ -459,9 +459,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
     ]
 
 
-def _group_events_by_day(events: List[Dict[str, Any]], days_ahead: int) -> List[Dict[str, Any]]:
+def _group_events_by_day(events: List[Dict[str, Any]], days_ahead: int, target_tz: Any) -> List[Dict[str, Any]]:
     """Group flat events list into days."""
-    today = date.today()
+    today = datetime.now(target_tz).date()
     grouped = []
 
     for i in range(days_ahead + 1):
@@ -536,10 +536,10 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
         events = _get_mock_events(days_ahead)
         is_sample_data = True
 
-    grouped_agenda = _group_events_by_day(events, days_ahead)
+    grouped_agenda = _group_events_by_day(events, days_ahead, target_tz)
 
     # 3. Wall Clock Information
-    now = datetime.now()
+    now = datetime.now(target_tz)
     return {
         "date_info": {
             "weekday": now.strftime("%A"),
