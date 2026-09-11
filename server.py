@@ -141,11 +141,6 @@ def _get_weather(lat: float, lon: float, units: str, cache_dir: str) -> Dict[str
     return data
 
 def _parse_icon_map(mapping_text: str) -> Dict[str, str]:
-    """
-    Parses color mappings formatted as:
-    1=ph-backpack
-    2=ph-first-aid
-    """
     mapping = {}
     if not mapping_text:
         return mapping
@@ -153,9 +148,20 @@ def _parse_icon_map(mapping_text: str) -> Dict[str, str]:
         line = line.strip()
         if "=" in line:
             cid, _, icon = line.partition("=")
-            mapping[cid.strip()] = icon.strip()
+            # Store lowercase so hexes (#FF2968) and CSS names (Turquoise) match case-insensitively
+            mapping[cid.strip().lower()] = icon.strip()
     return mapping
 
+
+def _format_time_parts(dt: datetime, time_fmt: str):
+    ev_hour = dt.hour
+    ev_min = dt.minute
+    if time_fmt == "24h":
+        return f"{ev_hour:02d}:{ev_min:02d}", f"{ev_hour:02d}", f"{ev_min:02d}", ""
+    else:
+        period = "AM" if ev_hour < 12 else "PM"
+        display_hour = ev_hour % 12 or 12
+        return f"{display_hour}:{ev_min:02d} {period}", str(display_hour), f"{ev_min:02d}", period
 
 def _fetch_google_calendar_events(
     credentials_raw: str,
@@ -170,7 +176,7 @@ def _fetch_google_calendar_events(
         raise RuntimeError("Missing google client libraries. Run: pip install google-api-python-client google-auth")
 
     # 1. Authorize via pasted JSON string or file path
-    scopes = ["https://www.googleapis.com/auth/calendar.readonly"]
+    scopes = ["https://www.googleapis.com/auth/calendar.events"]
     creds_str = credentials_raw.strip()
     if creds_str.startswith("{"):
         creds_info = json.loads(creds_str)
@@ -182,8 +188,8 @@ def _fetch_google_calendar_events(
 
     # 2. Set boundary times
     now_local = datetime.now(target_tz)
-    time_min = now_local.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    time_max = (now_local + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59).isoformat()
+    fetch_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    fetch_end = (now_local + timedelta(days=days_ahead)).replace(hour=23, minute=59, second=59).isoformat()
 
     cal_ids = [c.strip() for c in calendar_ids_str.split(",") if c.strip()]
     if not cal_ids:
@@ -191,23 +197,41 @@ def _fetch_google_calendar_events(
 
     events = []
     seen_ids = set()
+    debug_raw_items = []
 
     # 3. Pull events from each calendar
     for cal_id in cal_ids:
+        list_kwargs = {
+            "calendarId": cal_id,
+            "timeMin": fetch_start,
+            "timeMax": fetch_end,
+            "singleEvents": True,
+            "orderBy": "startTime",
+            "eventLabelVersion": 1,  # Enables the new eventLabelId palette
+        }
+        debug_raw_items.append({"starting":cal_id, "kwargs":list_kwargs})
         try:
-            res = service.events().list(
-                calendarId=cal_id,
-                timeMin=time_min,
-                timeMax=time_max,
-                singleEvents=True,  # Automatically expands recurring events
-                orderBy="startTime"
-            ).execute()
+            try:
+                res = service.events().list(**list_kwargs).execute()
+            except TypeError:
+                # Fallback if local discovery doc schema lacks the eventLabelVersion argument
+                del list_kwargs["eventLabelVersion"]
+                res = service.events().list(**list_kwargs).execute()
         except Exception as exc:
-            # Skip invalid calendars gracefully or continue with the rest
+            debug_raw_items.append({"error_cal":cal_id,"exception":str(exc)})
             continue
-
+        
         items = res.get("items", [])
+        debug_raw_items.append({"items":items})
         for item in items:
+            if len(debug_raw_items) < 5:
+                debug_raw_items.append({
+                    "summary": item.get("summary"),
+                    "colorId": item.get("colorId"),
+                    "eventLabelId": item.get("eventLabelId"),
+                    "keys": list(item.keys())
+                })
+
             event_id = item.get("id")
             if event_id in seen_ids:
                 continue
@@ -215,39 +239,29 @@ def _fetch_google_calendar_events(
 
             summary = item.get("summary", "(No Title)")
             start = item.get("start", {})
-            color_id = str(item.get("colorId", ""))
-
-            # Map the color to an icon (or fallback to default calendar icon)
-            icon = icon_map.get(color_id, "ph-calendar-blank")
+            end = item.get("end", {})
+            
+            # Check the new eventLabelId first, then fall back to legacy colorId
+            color_key = str(item.get("eventLabelId") or item.get("colorId") or cal_id or "").strip()
+            icon = icon_map.get(color_key.lower(), "ph-calendar-blank")
 
             if "dateTime" in start:
                 # Timed event
-                dt = datetime.fromisoformat(start["dateTime"]).astimezone(target_tz)
-                ev_date = dt.date()
-                ev_hour = dt.hour
-                ev_min = dt.minute
+                dt_start = datetime.fromisoformat(start["dateTime"]).astimezone(target_tz)
+                time_str, time_hr, time_min, time_period = _format_time_parts(dt_start, time_fmt)
+                ev_date = dt_start.date()
                 is_all_day = False
-                sort_minutes = ev_hour * 60 + ev_min
+                sort_minutes = dt_start.hour * 60 + dt_start.minute
 
-                if time_fmt == "24h":
-                    time_str = f"{ev_hour:02d}:{ev_min:02d}"
-                    time_hr_str = f"{ev_hour:02d}"
-                    time_min_str = f"{ev_min:02d}"
-                    time_period = ""
-                else:
-                    period = "AM" if ev_hour < 12 else "PM"
-                    display_hour = ev_hour % 12 or 12
-                    time_str = f"{display_hour}:{ev_min:02d} {period}"
-                    time_hr = str(display_hour)
-                    time_min = f"{ev_min:02d}"
-                    time_period = period
+                time_end_str = ""
+                if "dateTime" in end:
+                    dt_end = datetime.fromisoformat(end["dateTime"]).astimezone(target_tz)
+                    time_end_str, _, _, _ = _format_time_parts(dt_end, time_fmt)
             else:
                 # All-day event (YYYY-MM-DD)
                 ev_date = datetime.strptime(start.get("date")[:10], "%Y-%m-%d").date()
-                time_str = "All Day"
-                time_hr = ""
-                time_min = ""
-                time_period = ""
+                time_str, time_hr, time_min, time_period = "All Day", "", "", ""
+                time_end_str = ""
                 is_all_day = True
                 sort_minutes = -1
 
@@ -258,16 +272,17 @@ def _fetch_google_calendar_events(
                 "time_hr": time_hr,
                 "time_min": time_min,
                 "time_period": time_period,
+                "time_end_str": time_end_str,
                 "is_all_day": is_all_day,
                 "sort_minutes": sort_minutes,
-                "color_id": color_id,
+                "color_id": color_key,
                 "icon": icon,
             })
 
     events.sort(key=lambda e: (e["date_iso"], e.get("sort_minutes", -1)))
-    return events
+    return events, {"sample_events": debug_raw_items}
 
-def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: Any) -> List[Dict[str, Any]]:
+def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: Any, icon_map) -> List[Dict[str, Any]]:
     """A lightweight, zero-dependency iCalendar (RFC 5545) parser."""
     # Unfold wrapped lines in RFC 5545 (lines starting with space or tab)
     lines = []
@@ -297,54 +312,55 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: A
                 dt_str = cur_event["DTSTART"]
                 summary = cur_event.get("SUMMARY", "Busy")
 
-                # Parse date / datetime
                 ev_date: Optional[date] = None
-                time_str = "All Day"
-                time_hr = ""
-                time_min = ""
-                time_period = ""
+                time_str, time_hr, time_min, time_period, time_end_str = "All Day", "", "", "", ""
                 is_all_day = True
-                sort_minutes = -1  # -1 guarantees all-day events appear first
+                sort_minutes = -1
 
                 try:
                     if "T" in dt_str:
                         clean_dt = dt_str.replace("-", "").replace(":", "")
-                        if "T" in clean_dt:
-                            date_part, time_part = clean_dt.split("T")
-                            is_utc = time_part.endswith("Z")
-                            time_part = time_part.replace("Z", "")[:6].ljust(6, "0")
-                            
-                            naive_dt = datetime.strptime(f"{date_part[:8]}T{time_part}", "%Y%m%dT%H%M%S")
-                            
-                            # If exported in UTC ('Z'), convert to your local timezone!
-                            if is_utc:
-                                localized_dt = naive_dt.replace(tzinfo=timezone.utc).astimezone(target_tz)
-                            else:
-                                localized_dt = naive_dt.replace(tzinfo=target_tz)
+                        date_part, time_part = clean_dt.split("T")
+                        is_utc = time_part.endswith("Z")
+                        time_part = time_part.replace("Z", "")[:6].ljust(6, "0")
+                        naive_dt = datetime.strptime(f"{date_part[:8]}T{time_part}", "%Y%m%dT%H%M%S")
 
-                            ev_date = localized_dt.date()
-                            ev_hour = localized_dt.hour
-                            ev_min = localized_dt.minute
-                            is_all_day = False
-                            sort_minutes = ev_hour * 60 + ev_min
+                        if is_utc:
+                            dt_start = naive_dt.replace(tzinfo=timezone.utc).astimezone(target_tz)
+                        else:
+                            dt_start = naive_dt.replace(tzinfo=target_tz)
 
-                            if time_fmt == "24h":
-                                time_str = f"{ev_hour:02d}:{ev_min:02d}"
-                                time_hr_str = f"{ev_hour:02d}"
-                                time_min_str = f"{ev_min:02d}"
-                                time_period = ""
-                            else:
-                                period = "AM" if ev_hour < 12 else "PM"
-                                display_hour = ev_hour % 12 or 12
-                                time_str = f"{display_hour}:{ev_min:02d} {period}"
-                                time_hr_str = str(display_hour)
-                                time_min_str = f"{ev_min:02d}"
-                                time_period = period
+                        ev_date = dt_start.date()
+                        is_all_day = False
+                        sort_minutes = dt_start.hour * 60 + dt_start.minute
+                        time_str, time_hr, time_min, time_period = _format_time_parts(dt_start, time_format)
+
+                        # Parse DTEND if present
+                        if "DTEND" in cur_event:
+                            end_clean = cur_event["DTEND"].replace("-", "").replace(":", "")
+                            if "T" in end_clean:
+                                e_date, e_time = end_clean.split("T")
+                                e_utc = e_time.endswith("Z")
+                                e_time = e_time.replace("Z", "")[:6].ljust(6, "0")
+                                naive_end = datetime.strptime(f"{e_date[:8]}T{e_time}", "%Y%m%dT%H%M%S")
+                                if e_utc:
+                                    dt_end = naive_end.replace(tzinfo=timezone.utc).astimezone(target_tz)
+                                else:
+                                    dt_end = naive_end.replace(tzinfo=target_tz)
+                                time_end_str, _, _, _ = _format_time_parts(dt_end, time_format)
                     else:
-                        # All-day event (date only)
                         ev_date = datetime.strptime(dt_str[:8], "%Y%m%d").date()
                 except Exception:
                     continue
+
+                # Read RFC 7986 COLOR (e.g. "turquoise") or Apple hex (e.g. "#FF2968")
+                raw_color = (
+                    cur_event.get("COLOR") 
+                    or cur_event.get("X-APPLE-CALENDAR-COLOR") 
+                    or ""
+                ).strip().strip('"\'')
+
+                icon = icon_map.get(raw_color.lower(), "ph-calendar-blank")
 
                 if ev_date and today <= ev_date <= end_date:
                     events.append({
@@ -354,11 +370,11 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: A
                         "time_hr": time_hr,
                         "time_min": time_min,
                         "time_period": time_period,
+                        "time_end_str": time_end_str,
                         "is_all_day": is_all_day,
                         "sort_minutes": sort_minutes,
-                        # Slots ready for native Google Calendar API migration:
-                        "color_id": cur_event.get("COLOR_ID", "default"),
-                        "icon": "ph-calendar-blank",
+                        "color_id": raw_color,
+                        "icon": icon,
                     })
             continue
 
@@ -383,7 +399,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "time_hr": "8",
             "time_min": "15",
             "time_period": "AM",
+            "time_end_str": "8:45 AM",
             "is_all_day": False,
+            "sort_minutes": 8 * 60 + 15,
             "color_id": "1",
             "icon": "ph-backpack",
         },
@@ -394,7 +412,9 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "time_hr": "2",
             "time_min": "00",
             "time_period": "PM",
+            "time_end_str": "3:00 PM",
             "is_all_day": False,
+            "sort_minutes": 14 * 60,
             "color_id": "2",
             "icon": "ph-first-aid",
         },
@@ -405,20 +425,11 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
             "time_hr": "",
             "time_min": "",
             "time_period": "",
+            "time_end_str": "",
             "is_all_day": True,
+            "sort_minutes": -1,
             "color_id": "3",
             "icon": "ph-trash",
-        },
-        {
-            "title": "Soccer Tournament",
-            "date_iso": (today + timedelta(days=2)).isoformat(),
-            "time_str": "10:00 AM",
-            "time_hr": "10",
-            "time_min": "00",
-            "time_period": "AM",
-            "is_all_day": False,
-            "color_id": "1",
-            "icon": "ph-trophy",
         },
     ]
 
@@ -486,7 +497,7 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
 
     if google_creds:
         try:
-            events = _fetch_google_calendar_events(
+            events, debug_meta = _fetch_google_calendar_events(
                 google_creds, cal_ids, icon_map, days_ahead, time_fmt, target_tz
             )
         except Exception as exc:
@@ -494,7 +505,7 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
     elif ics_url:
         try:
             ics_raw = _fetch_url(ics_url)
-            events = _parse_ics(ics_raw, days_ahead, time_fmt, target_tz)
+            events = _parse_ics(ics_raw, days_ahead, time_fmt, target_tz, icon_map)
         except Exception as exc:
             return {"error": f"Failed to load calendar: {str(exc)}"}
     else:
@@ -514,4 +525,5 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
         "weather": weather_data,
         "agenda": grouped_agenda,
         "is_sample_data": is_sample_data,
+        "_debug": debug_meta
     }

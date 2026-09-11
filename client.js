@@ -1,4 +1,5 @@
 export default async function render(shadow, ctx) {
+  console.log("Dashboard Payload:", ctx.data);
   const data = ctx.data || {};
 
   // Display error state if server-side fetch failed
@@ -291,7 +292,7 @@ export default async function render(shadow, ctx) {
                     <i class="ph-bold ${ev.icon || 'ph-calendar-blank'}" style="font-size: 2rem; flex-shrink: 0;" aria-hidden="true"></i>
                     <div class="event-right-side">
                     <div class="event-title">${formatTitle(ev.title)}</div>
-                    <div class="event-end-time">until 00:00PM</div>
+                    <div class="event-end-time">until ${ev.time_end_str}</div>
                     </div>
                   </div>
                 `).join('')}
