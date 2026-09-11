@@ -323,7 +323,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: A
             lines.append(raw_line)
 
     now_local = datetime.now(target_tz)
-    today = date.today()
+    today = now_local.today()
     end_date = today + timedelta(days=days_ahead)
 
     events: List[Dict[str, Any]] = []
@@ -346,6 +346,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: A
                 time_str, time_hr, time_min, time_period, time_end_str = "All Day", "", "", "", ""
                 is_all_day = True
                 sort_minutes = -1
+                end_iso = None
 
                 try:
                     if "T" in dt_str:
@@ -378,6 +379,10 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: A
                                 else:
                                     dt_end = naive_end.replace(tzinfo=target_tz)
                                 time_end_str, _, _, _ = _format_time_parts(dt_end, time_format)
+                                end_iso = dt_end.isoformat()
+
+                        if not end_iso:
+                            end_iso = (dt_start + timedelta(hours=1)).isoformat()
                     else:
                         ev_date = datetime.strptime(dt_str[:8], "%Y%m%d").date()
                 except Exception:
@@ -401,6 +406,7 @@ def _parse_ics(ics_content: str, days_ahead: int, time_format: str, target_tz: A
                         "time_min": time_min,
                         "time_period": time_period,
                         "time_end_str": time_end_str,
+                        "end_iso": end_iso,
                         "is_all_day": is_all_day,
                         "sort_minutes": sort_minutes,
                         "color_id": raw_color,
