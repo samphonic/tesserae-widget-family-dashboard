@@ -209,7 +209,7 @@ export default async function render(shadow, ctx) {
       .event-time {
         font-size: 1.1rem;
         font-weight: 700;
-        min-width: 65px;
+        min-width: 96px;
         color: var(--text-secondary);
         flex-shrink: 0;
         display: flex;
@@ -227,7 +227,8 @@ export default async function render(shadow, ctx) {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        line-height: 1;
+        line-height: 1.4;
+        overflow: visible;
       }
       .today .title-lead {
         font-size: 2rem;
