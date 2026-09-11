@@ -207,12 +207,15 @@ export default async function render(shadow, ctx) {
         flex-direction: column;
       }
       .event-time {
-        font-size: 0.8rem;
+        font-size: 1.1rem;
         font-weight: 700;
         min-width: 65px;
         color: var(--text-secondary);
         flex-shrink: 0;
         display: flex;
+      }
+      .today .event-time {
+        font-size: 0.8rem;
       }
       .event-time.all-day {
         font-weight: 800;
@@ -224,6 +227,7 @@ export default async function render(shadow, ctx) {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        line-height: 1;
       }
       .today .title-lead {
         font-size: 2rem;
@@ -235,7 +239,8 @@ export default async function render(shadow, ctx) {
 
       .event-end-time {
         line-height: 1;
-        padding-left: 0.3rem;
+        font-size: 0.8rem;
+        padding-left: 0.2rem;
         padding-bottom: 0.1rem;
       }
 

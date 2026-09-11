@@ -5,7 +5,7 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timedelta, date, timezone
 from typing import Any, Dict, List, Optional
-import zoneinfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 try:
     from google.oauth2 import service_account
@@ -48,6 +48,30 @@ def _fetch_url(url: str, timeout: int = 8) -> str:
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
+
+def _resolve_local_tz() -> ZoneInfo:
+    """Lifted from Calendar, Schedule"""
+    try:
+        from app.tz_resolve import app_timezone
+
+        resolved = app_timezone()
+        if isinstance(resolved, ZoneInfo):
+            return resolved
+        key = getattr(resolved, "key", None)
+        if isinstance(key, str) and key:
+            return ZoneInfo(key)
+    except Exception:
+        pass
+    try:
+        store = current_app.config.get("SETTINGS_STORE")
+        raw = ""
+        if store is not None:
+            raw = str(store.get_section("app").get("timezone") or "").strip()
+        if not raw or raw.lower() == "system":
+            return ZoneInfo("UTC")
+        return ZoneInfo(raw)
+    except (ZoneInfoNotFoundError, Exception):
+        return ZoneInfo("UTC")
 
 def _resolve_tesserae_environment(options: dict, ctx: dict):
     """
@@ -92,7 +116,7 @@ def _resolve_tesserae_environment(options: dict, ctx: dict):
     if target_tz is None:
         target_tz = datetime.now().astimezone().tzinfo or timezone.utc
 
-    return lat, lon, target_tz, (str(tz_name) if tz_name else "auto")
+    return lat, lon, _resolve_local_tz(), (str(tz_name) if tz_name else "auto")
 
 def _get_weather(lat: float, lon: float, units: str, cache_dir: str) -> Dict[str, Any]:
     """Fetch forecast from Open-Meteo (cached for 15 minutes)."""
@@ -198,6 +222,7 @@ def _fetch_google_calendar_events(
     events = []
     seen_ids = set()
     debug_raw_items = []
+    debug_raw_items.append({"target_tz":str(target_tz)})
 
     # 3. Pull events from each calendar
     for cal_id in cal_ids:
@@ -492,6 +517,7 @@ def fetch(options: dict, settings: dict, *, ctx: dict) -> dict:
     google_creds = options.get("google_credentials_json", "").strip()
     cal_ids = options.get("calendar_ids", "primary")
     icon_map = _parse_icon_map(options.get("color_icon_map", ""))
+    debug_meta = []
 
     if google_creds:
         try:
