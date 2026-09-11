@@ -282,11 +282,15 @@ def _fetch_google_calendar_events(
                 if "dateTime" in end:
                     dt_end = datetime.fromisoformat(end["dateTime"]).astimezone(target_tz)
                     time_end_str, _, _, _ = _format_time_parts(dt_end, time_fmt)
+                else:
+                    dt_end = dt_start + timedelta(hours=1)
+                end_iso = dt_end.isoformat()
             else:
                 # All-day event (YYYY-MM-DD)
                 ev_date = datetime.strptime(start.get("date")[:10], "%Y-%m-%d").date()
                 time_str, time_hr, time_min, time_period = "All Day", "", "", ""
                 time_end_str = ""
+                end_iso = None
                 is_all_day = True
                 sort_minutes = -1
 
@@ -298,6 +302,7 @@ def _fetch_google_calendar_events(
                 "time_min": time_min,
                 "time_period": time_period,
                 "time_end_str": time_end_str,
+                "end_iso": end_iso,
                 "is_all_day": is_all_day,
                 "sort_minutes": sort_minutes,
                 "color_id": color_key,
@@ -461,19 +466,31 @@ def _get_mock_events(days_ahead: int) -> List[Dict[str, Any]]:
 
 def _group_events_by_day(events: List[Dict[str, Any]], days_ahead: int, target_tz: Any) -> List[Dict[str, Any]]:
     """Group flat events list into days."""
-    today = datetime.now(target_tz).date()
+    now_local = datetime.now(target_tz)
+    today = now_local.date()
+    now_iso = now_local.isoformat()
     grouped = []
 
     for i in range(days_ahead + 1):
         target_date = today + timedelta(days=i)
         target_iso = target_date.isoformat()
+        
 
         if i == 0:
             label = "TODAY"
         else:
             label = target_date.strftime("%A, %b %d").upper()
 
-        day_events = [e for e in events if e["date_iso"] == target_iso]
+        day_events = []
+        for e in events:
+            if e["date_iso"] != target_iso:
+                continue
+            # For today: drop timed events whose end time has already passed
+            if i == 0 and not e.get("is_all_day"):
+                end_iso = e.get("end_iso")
+                if end_iso and end_iso < now_iso:
+                    continue
+            day_events.append(e)
         
         grouped.append({
             "date_str": target_iso,
